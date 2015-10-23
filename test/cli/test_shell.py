@@ -8,7 +8,8 @@ import pytest
 from nameko.standalone.rpc import ClusterProxy
 from nameko.cli.main import setup_parser
 from nameko.cli.shell import make_nameko_helper, main
-from nameko.constants import SERIALIZER_CONFIG_KEY, AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+from nameko.constants import SERIALIZER_CONFIG_KEY, AMQP_URI_CONFIG_KEY, \
+    WEB_SERVER_CONFIG_KEY
 
 RUN_CONFIG_FILE = abspath(join(dirname(__file__), 'run-config.yaml'))
 

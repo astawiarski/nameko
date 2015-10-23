@@ -12,7 +12,8 @@ from nameko.cli.run import import_service, setup_backdoor, main, run
 from nameko.exceptions import CommandError
 from nameko.runners import ServiceRunner
 from nameko.standalone.rpc import ClusterRpcProxy
-from nameko.constants import SERIALIZER_CONFIG_KEY, AMQP_URI_CONFIG_KEY, WEB_SERVER_CONFIG_KEY
+from nameko.constants import SERIALIZER_CONFIG_KEY, AMQP_URI_CONFIG_KEY, \
+    WEB_SERVER_CONFIG_KEY
 
 from test.sample import Service
 
