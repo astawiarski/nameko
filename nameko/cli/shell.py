@@ -6,6 +6,7 @@ to the built-in namespace, providing ``n.rpc`` and ``n.dispatch_event``.
 import code
 import os
 import sys
+import yaml
 from types import ModuleType
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
