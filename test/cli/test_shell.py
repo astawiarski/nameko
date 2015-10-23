@@ -3,11 +3,16 @@ import sys
 
 
 from mock import patch, Mock
+from os.path import join, dirname, abspath
 import pytest
 
 from nameko.standalone.rpc import ClusterProxy
 from nameko.cli.main import setup_parser
 from nameko.cli.shell import make_nameko_helper, main
+from nameko.constants import SERIALIZER_CONFIG_KEY, AMQP_URI_CONFIG_KEY, \
+    WEB_SERVER_CONFIG_KEY
+
+RUN_CONFIG_FILE = abspath(join(dirname(__file__), 'run-config.yaml'))
 
 
 def test_helper_module(rabbit_config):
@@ -108,3 +113,19 @@ def test_ipython(pystartup):
     assert 'n' in local.keys()
     assert local['foo'] == 42
     local['n'].disconnect()
+
+
+def test_config_serializer(pystartup):
+    parser = setup_parser()
+    args = parser.parse_args(['shell', '--config', RUN_CONFIG_FILE])
+
+    with patch('nameko.cli.shell.code') as code:
+        main(args)
+        assert code.call_count == 1
+        (_, config) = code.call_args[0]
+
+        assert config == {
+            WEB_SERVER_CONFIG_KEY: '0.0.0.0:8001',
+            AMQP_URI_CONFIG_KEY: 'amqp://foo:bar@example.org',
+            SERIALIZER_CONFIG_KEY: 'json'
+        }

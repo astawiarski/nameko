@@ -6,6 +6,7 @@ to the built-in namespace, providing ``n.rpc`` and ``n.dispatch_event``.
 import code
 import os
 import sys
+import yaml
 from types import ModuleType
 
 from nameko.constants import AMQP_URI_CONFIG_KEY
@@ -59,6 +60,9 @@ def init_parser(parser):
     parser.add_argument(
         '--interface', choices=SHELLS,
         help='Specify an interactive interpreter interface.')
+    parser.add_argument(
+        '--config', default='',
+        help='The YAML configuration file')
     return parser
 
 
@@ -90,7 +94,13 @@ def main(args):
         sys.platform,
         args.broker.encode('utf-8'),
     )
-    config = {AMQP_URI_CONFIG_KEY: args.broker}
+    config = {}
+
+    if args.config:
+        with open(args.config) as fle:
+            config = yaml.load(fle)
+    else:
+        config[AMQP_URI_CONFIG_KEY] = args.broker
 
     ctx = {}
     ctx['n'] = make_nameko_helper(config)
