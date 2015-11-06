@@ -300,23 +300,35 @@ class RpcProxy(DependencyProvider):
 
     rpc_reply_listener = ReplyListener()
 
-    def __init__(self, target_service):
+    def __init__(self, target_service, delivery_options=None):
         self.target_service = target_service
+        self.delivery_options = delivery_options
 
     def get_dependency(self, worker_ctx):
         return ServiceProxy(worker_ctx, self.target_service,
-                            self.rpc_reply_listener)
+                            self.rpc_reply_listener, self.delivery_options)
 
 
 class ServiceProxy(object):
-    def __init__(self, worker_ctx, service_name, reply_listener):
+    def __init__(self, worker_ctx, service_name, reply_listener,
+                 delivery_options=None):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.reply_listener = reply_listener
+        self.delivery_options = delivery_options
+
+    def set_delivery_options(self, expire=None, delivery='persistent',
+                             compression=None):
+        self.delivery_options = {
+            'expiration': expire,
+            'delivery_mode': delivery,
+            'compression': compression
+        }
 
     def __getattr__(self, name):
         return MethodProxy(
-            self.worker_ctx, self.service_name, name, self.reply_listener)
+            self.worker_ctx, self.service_name, name, self.reply_listener,
+            self.delivery_options)
 
 
 class RpcReply(object):
@@ -340,21 +352,33 @@ class RpcReply(object):
 
 class MethodProxy(HeaderEncoder):
 
-    def __init__(self, worker_ctx, service_name, method_name, reply_listener):
+    def __init__(self, worker_ctx, service_name, method_name, reply_listener,
+                 delivery_options=None):
         self.worker_ctx = worker_ctx
         self.service_name = service_name
         self.method_name = method_name
         self.reply_listener = reply_listener
+        self.delivery_options = delivery_options or {}
 
     def __call__(self, *args, **kwargs):
-        reply = self._call(*args, **kwargs)
+        reply = self._call(args, kwargs, self.delivery_options)
         return reply.result()
 
     def async(self, *args, **kwargs):
-        reply = self._call(*args, **kwargs)
+        reply = self._call(args, kwargs, self.delivery_options)
         return reply
 
-    def _call(self, *args, **kwargs):
+    def send(self, args, kwargs, expire=None, delivery='persistent',
+             compression=None):
+        delivery_options = {
+            'expiration': expire,
+            'delivery_mode': delivery,
+            'compression': compression
+        }
+        reply = self._call(args, kwargs, delivery_options)
+        return reply
+
+    def _call(self, args, kwargs, delivery_options):
         _log.debug('invoking %s', self)
 
         worker_ctx = self.worker_ctx
@@ -408,7 +432,8 @@ class MethodProxy(HeaderEncoder):
                 headers=headers,
                 correlation_id=correlation_id,
                 retry=True,
-                retry_policy=DEFAULT_RETRY_POLICY
+                retry_policy=DEFAULT_RETRY_POLICY,
+                **delivery_options
             )
 
             # This used to do .empty() to check if the queue is empty
