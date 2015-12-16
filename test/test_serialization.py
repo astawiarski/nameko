@@ -2,6 +2,7 @@ import json
 import uuid
 
 from kombu.serialization import register
+from kombu.entity import DELIVERY_MODES
 from mock import Mock, call
 import pytest
 
@@ -46,6 +47,11 @@ class Service(object):
 
     @rpc
     def echo(self, arg):
+        entrypoint_called(arg)
+        return arg
+
+    @rpc(delivery_options={'compression': 'gzip', 'delivery_mode': 'transient'})
+    def echo_compressed(self, arg):
         entrypoint_called(arg)
         return arg
 
@@ -113,6 +119,40 @@ def test_rpc_serialization(container_factory, rabbit_config,
 
     msg = get_messages()[0]
     assert msg['properties']['content_type'] == serialized['content_type']
+
+
+@pytest.mark.parametrize("delivery_options", [
+    {'expiration': 15, 'delivery_mode': 'transient', 'compression': 'gzip'}
+])
+def test_rpc_delivery_options(container_factory, rabbit_config,
+                              sniffer_queue_factory, delivery_options):
+
+    config = rabbit_config
+    config[SERIALIZER_CONFIG_KEY] = 'json'
+    container = container_factory(Service, config)
+    container.start()
+
+    get_messages = sniffer_queue_factory('nameko-rpc')
+
+    serialized = serialized_info['json']
+
+    with ServiceRpcProxy('service', rabbit_config) as proxy:
+        assert proxy.echo_compressed(test_data) == serialized['data']
+        assert entrypoint_called.call_args == call(serialized['data'])
+
+    # below only works for sending calls
+    # delivery options don't seem to be applied to replies
+
+    with ServiceRpcProxy('service', rabbit_config, delivery_options=delivery_options) as proxy:
+        f = proxy.non_existent.async(test_data)
+        assert f.result() == serialized['data']
+        assert entrypoint_called.call_args == call(serialized['data'])
+
+    msgs = get_messages()
+    msg = msgs[0]
+    # assert len(msgs) == 2
+    assert msg['properties']['content_type'] == serialized['content_type']
+    assert msg['properties']['delivery_mode'] == DELIVERY_MODES[delivery_options['delivery_mode']]
 
 
 def test_rpc_result_serialization_error(container_factory, rabbit_config):

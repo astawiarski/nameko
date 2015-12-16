@@ -195,7 +195,7 @@ class StandaloneProxyBase(object):
 
     def __init__(
         self, config, context_data=None, timeout=None,
-        worker_ctx_cls=WorkerContext
+        worker_ctx_cls=WorkerContext, delivery_options=None
     ):
         container = self.ServiceContainer(config)
 
@@ -206,6 +206,7 @@ class StandaloneProxyBase(object):
             container, service=None, entrypoint=self.Dummy,
             data=context_data)
         self._reply_listener = reply_listener
+        self._delivery_options = delivery_options
 
     def __enter__(self):
         return self.start()
@@ -255,7 +256,8 @@ class ServiceRpcProxy(StandaloneProxyBase):
     def __init__(self, service_name, *args, **kwargs):
         super(ServiceRpcProxy, self).__init__(*args, **kwargs)
         self._proxy = ServiceProxy(
-            self._worker_ctx, service_name, self._reply_listener)
+            self._worker_ctx, service_name, self._reply_listener,
+            self._delivery_options)
 
 
 class ClusterProxy(object):
@@ -296,20 +298,23 @@ class ClusterProxy(object):
     serialised into the AMQP message headers, and specify custom worker
     context class to serialise them.
     """
-    def __init__(self, worker_ctx, reply_listener):
+    def __init__(self, worker_ctx, reply_listener, delivery_options=None):
         self._worker_ctx = worker_ctx
         self._reply_listener = reply_listener
+        self._delivery_options = delivery_options
 
         self._proxies = {}
 
     def __getattr__(self, name):
         if name not in self._proxies:
             self._proxies[name] = ServiceProxy(
-                self._worker_ctx, name, self._reply_listener)
+                self._worker_ctx, name, self._reply_listener,
+                delivery_options=self._delivery_options)
         return self._proxies[name]
 
 
 class ClusterRpcProxy(StandaloneProxyBase):
     def __init__(self, *args, **kwargs):
         super(ClusterRpcProxy, self).__init__(*args, **kwargs)
-        self._proxy = ClusterProxy(self._worker_ctx, self._reply_listener)
+        self._proxy = ClusterProxy(self._worker_ctx, self._reply_listener,
+                                   self._delivery_options)
